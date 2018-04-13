@@ -116,8 +116,8 @@ public class MainActivity extends AppCompatActivity implements ConnectionCallbac
     }
     // TODO (9) Implement the Add Place Button click event to show  a toast message with the permission status
     public void onAddNewLocationClicked(View view) {
-        int resullt = ContextCompat.checkSelfPermission(getApplicationContext(),
-                Manifest.permission.ACCESS_FINE_LOCATION);
+        int resullt = ActivityCompat.checkSelfPermission(this,
+                android.Manifest.permission.ACCESS_FINE_LOCATION);
         if (resullt == PackageManager.PERMISSION_GRANTED){
             Toast.makeText(this, "Fine location access granted", Toast.LENGTH_SHORT).show();
         } else {
