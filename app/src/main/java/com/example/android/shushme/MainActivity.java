@@ -16,6 +16,8 @@ package com.example.android.shushme;
 * limitations under the License.
 */
 
+import android.content.ContentValues;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
@@ -29,12 +31,17 @@ import android.view.View;
 import android.widget.CheckBox;
 import android.widget.Toast;
 
+import com.example.android.shushme.provider.PlaceContract.PlaceEntry;
 import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.GooglePlayServicesNotAvailableException;
+import com.google.android.gms.common.GooglePlayServicesRepairableException;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.common.api.GoogleApiClient.ConnectionCallbacks;
 import com.google.android.gms.common.api.GoogleApiClient.OnConnectionFailedListener;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.location.places.Place;
 import com.google.android.gms.location.places.Places;
+import com.google.android.gms.location.places.ui.PlacePicker;
 
 public class MainActivity extends AppCompatActivity implements
         ConnectionCallbacks,
@@ -43,6 +50,7 @@ public class MainActivity extends AppCompatActivity implements
     // Constants
     public static final String TAG = MainActivity.class.getSimpleName();
     private static final int PERMISSIONS_REQUEST_FINE_LOCATION = 111;
+    private static final int PLACE_PICKER_REQUEST = 1;
 
     // Member variables
     private PlaceListAdapter mAdapter;
@@ -59,7 +67,7 @@ public class MainActivity extends AppCompatActivity implements
         setContentView(R.layout.activity_main);
 
         // Set up the recycler view
-        mRecyclerView = (RecyclerView) findViewById(R.id.places_list_recycler_view);
+        mRecyclerView = findViewById(R.id.places_list_recycler_view);
         mRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         mAdapter = new PlaceListAdapter(this);
         mRecyclerView.setAdapter(mAdapter);
@@ -120,19 +128,53 @@ public class MainActivity extends AppCompatActivity implements
             return;
         }
         // TODO (1) Create a PlacePicker.IntentBuilder and call startActivityForResult
-        // TODO (2) Handle GooglePlayServices exceptions
-        Toast.makeText(this, getString(R.string.location_permissions_granted_message), Toast.LENGTH_LONG).show();
+
+        try {
+            // If the target device does not have an up to date Google Play Services app, the following
+            // will cause the app to crash. So we surround with a 'try catch' block. Normally we would
+            // display an error telling the user to update, but for now we just log the exceptions.
+            PlacePicker.IntentBuilder builder = new PlacePicker.IntentBuilder();
+            Intent intent = builder.build(this);
+            startActivityForResult(intent, PLACE_PICKER_REQUEST);
+            // TODO (2) Handle GooglePlayServices exceptions
+        } catch (GooglePlayServicesRepairableException e) {
+            Log.e(TAG, String.format("Google Play Services not available [%s]", e.getMessage()));
+        } catch (GooglePlayServicesNotAvailableException e) {
+            Log.e(TAG, String.format("Google Play Services not available [%s]", e.getMessage()));
+        } catch (Exception e) {
+            Log.e(TAG, String.format("PlacePicker Exception: %s", e.getMessage()));
+        }
     }
 
     // TODO (3) Implement onActivityResult and check that the requestCode is PLACE_PICKER_REQUEST
-    // TODO (4) In onActivityResult, use PlacePicker.getPlace to extract the Place ID and insert it into the DB
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == PLACE_PICKER_REQUEST && resultCode == RESULT_OK) {
+            // TODO (4) In onActivityResult, use PlacePicker.getPlace to extract the Place ID and insert it into the DB
+            Place place = PlacePicker.getPlace(this, data);
+            if (place == null) {
+                Log.i(TAG, "No place selected");
+                return;
+            }
+
+            // Extract the place information
+            String placeName = place.getName().toString();
+            String placeAddress = place.getAddress().toString();
+            String placeId = place.getId();
+
+            // Insert into DB
+            ContentValues values = new ContentValues();
+            values.put(PlaceEntry.COLUMN_PLACE_ID, placeId);
+            getContentResolver().insert(PlaceEntry.CONTENT_URI, values);
+        }
+    }
 
     @Override
     public void onResume() {
         super.onResume();
 
         // Initialize location permissions checkbox
-        CheckBox locationPermissions = (CheckBox) findViewById(R.id.location_permission_checkbox);
+        CheckBox locationPermissions = findViewById(R.id.location_permission_checkbox);
         if (ActivityCompat.checkSelfPermission(MainActivity.this,
                 android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             locationPermissions.setChecked(false);
